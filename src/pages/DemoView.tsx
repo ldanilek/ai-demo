@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { useParams, Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { api } from "../../convex/_generated/api";
@@ -22,13 +22,15 @@ export function DemoView() {
     }
   );
   const createNewOutputs = useMutation(api.demos.createNewOutputs);
-  const generateForDemo = useAction(api.generate.generateForDemo);
   const createSingleModelOutput = useMutation(api.demos.createSingleModelOutput);
-  const generateForOutput = useAction(api.generate.generateForOutput);
   const [viewingSource, setViewingSource] = useState<{ model: string; css: string; html: string } | null>(null);
   const [fullscreenOutput, setFullscreenOutput] = useState<{ model: string; css: string; html: string } | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
+  const [showPromptModal, setShowPromptModal] = useState(false);
+  const [editingPrompt, setEditingPrompt] = useState("");
+  const [isEditMode, setIsEditMode] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const updatePrompt = useMutation(api.demos.updatePrompt);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -63,19 +65,34 @@ export function DemoView() {
 
   const handleRegenerate = async () => {
     if (!demoId || selectedModels.size === 0) return;
+    // createNewOutputs creates the output records and schedules AI generation
+    // for each one internally (via ctx.scheduler.runAfter) — no separate
+    // action call needed from the client.
     await createNewOutputs({ demoId: demoId as Id<"aiDemos">, models: Array.from(selectedModels) });
-    generateForDemo({ demoId: demoId as Id<"aiDemos"> });
   };
 
   const handleGenerateSingleModel = async (model: string) => {
-    if (!demoId || !demo) return;
-    // Create output first for immediate UI feedback
-    const outputId = await createSingleModelOutput({ 
+    if (!demoId) return;
+    // createSingleModelOutput creates the output record and schedules AI
+    // generation internally — no separate action call needed.
+    await createSingleModelOutput({ 
       demoId: demoId as Id<"aiDemos">, 
       model 
     });
-    // Then trigger generation
-    generateForOutput({ outputId, prompt: demo.prompt, model });
+  };
+
+  const openPromptModal = () => {
+    if (!demo) return;
+    setEditingPrompt(demo.prompt);
+    setIsEditMode(false);
+    setShowPromptModal(true);
+  };
+
+  const handleSavePrompt = async () => {
+    if (!demoId || !editingPrompt.trim()) return;
+    await updatePrompt({ demoId: demoId as Id<"aiDemos">, prompt: editingPrompt.trim() });
+    setShowPromptModal(false);
+    setIsEditMode(false);
   };
 
   if (demo === undefined) {
@@ -114,20 +131,30 @@ export function DemoView() {
       )}
       <header className="header">
         <Link to="/" className="logo">AI Demo Arena</Link>
-        <div className="demo-prompt-header">
+        <button className="demo-prompt-header" onClick={openPromptModal}>
           <span className="prompt-label">Prompt:</span>
           <span className="prompt-text">{demo.prompt}</span>
-        </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="prompt-expand-icon">
+            <polyline points="15 3 21 3 21 9" />
+            <polyline points="9 21 3 21 3 15" />
+            <line x1="21" y1="3" x2="14" y2="10" />
+            <line x1="3" y1="21" x2="10" y2="14" />
+          </svg>
+        </button>
         <div className="header-actions">
           <div className="models-dropdown-container" ref={dropdownRef}>
-            <button onClick={() => setShowModelPicker(!showModelPicker)} className="btn btn-secondary btn-models">
+            <button
+              onClick={() => setShowModelPicker(!showModelPicker)}
+              className="btn btn-secondary btn-models"
+              title={`Models (${selectedModels.size})`}
+            >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="7" height="7" />
                 <rect x="14" y="3" width="7" height="7" />
                 <rect x="14" y="14" width="7" height="7" />
                 <rect x="3" y="14" width="7" height="7" />
               </svg>
-              Models ({selectedModels.size})
+              <span className="btn-label">Models ({selectedModels.size})</span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`chevron ${showModelPicker ? 'open' : ''}`}>
                 <polyline points="6 9 12 15 18 9" />
               </svg>
@@ -149,14 +176,19 @@ export function DemoView() {
               </div>
             )}
           </div>
-          <button onClick={handleRegenerate} className="btn btn-primary btn-regenerate" disabled={selectedModels.size === 0}>
+          <button
+            onClick={handleRegenerate}
+            className="btn btn-primary btn-regenerate"
+            disabled={selectedModels.size === 0}
+            title="Regenerate"
+          >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 2v6h-6" />
               <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
               <path d="M3 22v-6h6" />
               <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
             </svg>
-            Regenerate
+            <span className="btn-label">Regenerate</span>
           </button>
         </div>
       </header>
@@ -356,6 +388,69 @@ export function DemoView() {
               sandbox="allow-scripts"
               title={`${fullscreenOutput.model} fullscreen`}
             />
+          </div>
+        </div>
+      )}
+
+      {showPromptModal && demo && (
+        <div className="source-modal-overlay" onClick={() => setShowPromptModal(false)}>
+          <div className="prompt-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="source-modal-header">
+              <h3>Prompt</h3>
+              <div className="prompt-modal-actions">
+                {demo.isOwner && !isEditMode && (
+                  <button 
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setIsEditMode(true)}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                    Edit
+                  </button>
+                )}
+                <button className="source-modal-close" onClick={() => setShowPromptModal(false)}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="prompt-modal-content">
+              {isEditMode ? (
+                <>
+                  <textarea
+                    value={editingPrompt}
+                    onChange={(e) => setEditingPrompt(e.target.value)}
+                    className="prompt-edit-textarea"
+                    rows={6}
+                    autoFocus
+                  />
+                  <div className="prompt-edit-buttons">
+                    <button 
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        setIsEditMode(false);
+                        setEditingPrompt(demo.prompt);
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      className="btn btn-primary"
+                      onClick={handleSavePrompt}
+                      disabled={!editingPrompt.trim()}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <p className="prompt-display">{demo.prompt}</p>
+              )}
+            </div>
           </div>
         </div>
       )}

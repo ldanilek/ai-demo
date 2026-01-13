@@ -1,4 +1,4 @@
-import { useConvexAuth, useMutation, useQuery, useAction } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
@@ -15,7 +15,6 @@ export function Home() {
   const myDemos = useQuery(api.demos.listMyDemos) ?? [];
   const createDemo = useMutation(api.demos.createDemo);
   const archiveDemo = useMutation(api.demos.archiveDemo);
-  const generateForDemo = useAction(api.generate.generateForDemo);
 
   if (!isAuthenticated) {
     return (
@@ -46,8 +45,9 @@ export function Home() {
     if (!prompt.trim() || isCreating) return;
     
     setIsCreating(true);
+    // createDemo inserts output records and schedules AI generation
+    // for each model internally — no separate action call needed.
     const demoId = await createDemo({ prompt: prompt.trim() });
-    generateForDemo({ demoId });
     navigate(`/${demoId}`);
   };
 
@@ -67,7 +67,7 @@ export function Home() {
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe what you want to see... e.g., 'display a clock', 'a neon sign that says hello', 'an animated loading spinner'"
+              placeholder="Describe what you want to see... e.g., 'an analog clock', 'a simple 4-function calculator', 'a pelican riding a bicycle'"
               rows={4}
             />
             <button type="submit" disabled={!prompt.trim() || isCreating} className="btn btn-primary">

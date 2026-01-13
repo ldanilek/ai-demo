@@ -1,8 +1,8 @@
 "use node";
 
 import { v } from "convex/values";
-import { action, internalAction } from "./_generated/server";
-import { api, internal } from "./_generated/api";
+import { internalAction } from "./_generated/server";
+import { api } from "./_generated/api";
 import { generateText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -62,62 +62,6 @@ Format your response EXACTLY like this:
 <script>
 // Your JavaScript here (optional)
 </script>`;
-
-export const generateForDemo = action({
-  args: { demoId: v.id("aiDemos") },
-  handler: async (ctx, args) => {
-    const demo = await ctx.runQuery(api.demos.getDemo, { demoId: args.demoId });
-    if (!demo) throw new Error("Demo not found");
-    
-    // Run all model generations in parallel, don't fail if one fails
-    const promises = demo.outputs.map((output) =>
-      ctx.runAction(internal.generate.generateSingleModel, {
-        outputId: output._id,
-        prompt: demo.prompt,
-        model: output.model,
-      })
-    );
-    
-    await Promise.allSettled(promises);
-  },
-});
-
-export const regenerateSingleModel = action({
-  args: { demoId: v.id("aiDemos"), model: v.string() },
-  handler: async (ctx, args) => {
-    const demo = await ctx.runQuery(api.demos.getDemo, { demoId: args.demoId });
-    if (!demo) throw new Error("Demo not found");
-    
-    // Create a new output for this model
-    const outputId = await ctx.runMutation(api.demos.createSingleModelOutput, {
-      demoId: args.demoId,
-      model: args.model,
-    });
-    
-    // Generate for this single model
-    await ctx.runAction(internal.generate.generateSingleModel, {
-      outputId,
-      prompt: demo.prompt,
-      model: args.model,
-    });
-  },
-});
-
-// Generate for an existing output (called after creating the output from frontend)
-export const generateForOutput = action({
-  args: { 
-    outputId: v.id("modelOutputs"),
-    prompt: v.string(),
-    model: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await ctx.runAction(internal.generate.generateSingleModel, {
-      outputId: args.outputId,
-      prompt: args.prompt,
-      model: args.model,
-    });
-  },
-});
 
 export const generateSingleModel = internalAction({
   args: {

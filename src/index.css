@@ -426,7 +426,7 @@ body::before {
 
 .demo-prompt-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   max-width: 600px;
 }
@@ -442,9 +442,10 @@ body::before {
 .prompt-text {
   font-size: 14px;
   color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  min-width: 0;
+  flex: 1;
 }
 
 .tiles-container {
@@ -723,10 +724,29 @@ body::before {
 .header-actions {
   display: flex;
   gap: 12px;
+  margin-left: 16px;
 }
 
 .btn-models {
   gap: 8px;
+}
+
+/* Hide button text and Models chevron on narrow viewports - show icons only */
+@media (max-width: 768px) {
+  .btn-models .btn-label,
+  .btn-regenerate .btn-label {
+    display: none;
+  }
+
+  .btn-models .chevron {
+    display: none;
+  }
+
+  .btn-models,
+  .btn-regenerate {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
 }
 
 /* Models Dropdown */
@@ -840,4 +860,120 @@ body::before {
   color: var(--text-muted);
   font-size: 16px;
   text-align: center;
+}
+
+/* Clickable prompt in header */
+button.demo-prompt-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  max-width: 550px;
+  text-align: left;
+}
+
+button.demo-prompt-header:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-accent);
+}
+
+button.demo-prompt-header .prompt-label {
+  color: var(--accent-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+button.demo-prompt-header .prompt-text {
+  color: var(--text-primary);
+  font-size: 14px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  min-width: 0;
+  flex: 1;
+  line-height: 1.5;
+}
+
+button.demo-prompt-header .prompt-expand-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: color 0.2s;
+  padding-top: 2px;
+}
+
+button.demo-prompt-header:hover .prompt-expand-icon {
+  color: var(--accent-primary);
+}
+
+/* Prompt Modal */
+.prompt-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.prompt-modal .source-modal-header {
+  justify-content: space-between;
+}
+
+.prompt-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-sm {
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.prompt-modal-content {
+  padding: 24px;
+}
+
+.prompt-display {
+  font-size: 18px;
+  line-height: 1.7;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+
+.prompt-edit-textarea {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 120px;
+}
+
+.prompt-edit-textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(0, 245, 212, 0.1);
+}
+
+.prompt-edit-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
 }

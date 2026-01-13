@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { auth } from "./auth";
+import { retrier } from "./retrier";
 
 // All available models with default enabled state
 export const ALL_MODELS = [
@@ -28,6 +30,9 @@ export const getDemo = query({
     const demo = await ctx.db.get(args.demoId);
     if (!demo) return null;
     
+    const userId = await auth.getUserId(ctx);
+    const isOwner = userId !== null && userId === demo.userId;
+    
     const allOutputs = await ctx.db
       .query("modelOutputs")
       .withIndex("by_demo", (q) => q.eq("demoId", args.demoId))
@@ -50,7 +55,7 @@ export const getDemo = query({
     // For old demos without selectedModels, use default enabled models
     const selectedModels = demo.selectedModels ?? ALL_MODELS.filter(m => m.defaultEnabled).map(m => m.id);
     
-    return { ...demo, outputs, selectedModels };
+    return { ...demo, outputs, selectedModels, isOwner };
   },
 });
 
@@ -86,9 +91,11 @@ export const createDemo = mutation({
       selectedModels: defaultModels,
     });
     
-    // Create pending outputs for default-enabled models
+    // Create pending outputs for default-enabled models and schedule AI generation
+    // for each. Uses the action retrier to retry on transient failures (network
+    // errors, API rate limits, etc.) with exponential backoff.
     for (const model of defaultModels) {
-      await ctx.db.insert("modelOutputs", {
+      const outputId = await ctx.db.insert("modelOutputs", {
         demoId,
         model,
         html: "",
@@ -96,9 +103,29 @@ export const createDemo = mutation({
         status: "pending",
         createdAt: Date.now(),
       });
+
+      await retrier.run(ctx, internal.generate.generateSingleModel, {
+        outputId,
+        prompt: args.prompt,
+        model,
+      });
     }
     
     return demoId;
+  },
+});
+
+export const updatePrompt = mutation({
+  args: { demoId: v.id("aiDemos"), prompt: v.string() },
+  handler: async (ctx, args) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    
+    const demo = await ctx.db.get(args.demoId);
+    if (!demo) throw new Error("Demo not found");
+    if (demo.userId !== userId) throw new Error("Not authorized");
+    
+    await ctx.db.patch(args.demoId, { prompt: args.prompt });
   },
 });
 
@@ -129,15 +156,25 @@ export const updateSelectedModels = mutation({
 export const createNewOutputs = mutation({
   args: { demoId: v.id("aiDemos"), models: v.array(v.string()) },
   handler: async (ctx, args) => {
-    // Create new pending outputs for each specified model
+    const demo = await ctx.db.get(args.demoId);
+    if (!demo) throw new Error("Demo not found");
+
+    // Create new pending outputs and schedule AI generation for each model.
+    // Uses the action retrier to retry on transient failures with exponential backoff.
     for (const model of args.models) {
-      await ctx.db.insert("modelOutputs", {
+      const outputId = await ctx.db.insert("modelOutputs", {
         demoId: args.demoId,
         model,
         html: "",
         css: "",
         status: "pending",
         createdAt: Date.now(),
+      });
+
+      await retrier.run(ctx, internal.generate.generateSingleModel, {
+        outputId,
+        prompt: demo.prompt,
+        model,
       });
     }
   },
@@ -146,6 +183,9 @@ export const createNewOutputs = mutation({
 export const createSingleModelOutput = mutation({
   args: { demoId: v.id("aiDemos"), model: v.string() },
   handler: async (ctx, args) => {
+    const demo = await ctx.db.get(args.demoId);
+    if (!demo) throw new Error("Demo not found");
+
     const outputId = await ctx.db.insert("modelOutputs", {
       demoId: args.demoId,
       model: args.model,
@@ -154,6 +194,15 @@ export const createSingleModelOutput = mutation({
       status: "pending",
       createdAt: Date.now(),
     });
+
+    // Schedule AI generation with retries on transient failures (network errors,
+    // API rate limits, etc.) via the action retrier.
+    await retrier.run(ctx, internal.generate.generateSingleModel, {
+      outputId,
+      prompt: demo.prompt,
+      model: args.model,
+    });
+
     return outputId;
   },
 });
