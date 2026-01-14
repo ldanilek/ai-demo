@@ -479,11 +479,62 @@ body::before {
   background: var(--bg-elevated);
 }
 
+.tile-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .model-name {
   font-family: var(--font-mono);
   font-size: 14px;
   font-weight: 700;
   color: var(--accent-primary);
+}
+
+/* Version Navigation */
+.version-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.version-nav-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-version-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-version-nav:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.btn-version-nav:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.version-indicator {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: center;
 }
 
 .status {

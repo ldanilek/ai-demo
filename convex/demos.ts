@@ -38,18 +38,39 @@ export const getDemo = query({
       .withIndex("by_demo", (q) => q.eq("demoId", args.demoId))
       .collect();
     
-    // Group by model and keep only the latest output per model
-    const latestByModel = new Map<string, typeof allOutputs[0]>();
+    // Group outputs by model, sorted by createdAt ascending (oldest first)
+    const outputsByModel = new Map<string, typeof allOutputs>();
     for (const output of allOutputs) {
-      const existing = latestByModel.get(output.model);
-      if (!existing || output.createdAt > existing.createdAt) {
-        latestByModel.set(output.model, output);
-      }
+      const list = outputsByModel.get(output.model) ?? [];
+      list.push(output);
+      outputsByModel.set(output.model, list);
+    }
+    // Sort each model's outputs by createdAt ascending
+    for (const list of outputsByModel.values()) {
+      list.sort((a, b) => a.createdAt - b.createdAt);
     }
     
-    // Return outputs in consistent model order
+    // Build outputs with version info
     const outputs = MODELS
-      .map((model) => latestByModel.get(model))
+      .map((model) => {
+        const versions = outputsByModel.get(model);
+        if (!versions || versions.length === 0) return undefined;
+        
+        // Determine which output to show
+        const selectedOutputId = demo.selectedOutputs?.[model];
+        let selectedIndex = versions.length - 1; // Default to latest
+        if (selectedOutputId) {
+          const idx = versions.findIndex(o => o._id === selectedOutputId);
+          if (idx !== -1) selectedIndex = idx;
+        }
+        
+        const output = versions[selectedIndex];
+        return {
+          ...output,
+          versionIndex: selectedIndex + 1, // 1-based for display
+          versionCount: versions.length,
+        };
+      })
       .filter((o): o is NonNullable<typeof o> => o !== undefined);
     
     // For old demos without selectedModels, use default enabled models
@@ -156,8 +177,21 @@ export const updateSelectedModels = mutation({
 export const createNewOutputs = mutation({
   args: { demoId: v.id("aiDemos"), models: v.array(v.string()) },
   handler: async (ctx, args) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    
     const demo = await ctx.db.get(args.demoId);
     if (!demo) throw new Error("Demo not found");
+    if (demo.userId !== userId) throw new Error("Not authorized");
+
+    // Clear selected versions for regenerated models so they default to latest
+    if (demo.selectedOutputs) {
+      const updatedSelectedOutputs = { ...demo.selectedOutputs };
+      for (const model of args.models) {
+        delete updatedSelectedOutputs[model];
+      }
+      await ctx.db.patch(args.demoId, { selectedOutputs: updatedSelectedOutputs });
+    }
 
     // Create new pending outputs and schedule AI generation for each model.
     // Uses the action retrier to retry on transient failures with exponential backoff.
@@ -183,8 +217,19 @@ export const createNewOutputs = mutation({
 export const createSingleModelOutput = mutation({
   args: { demoId: v.id("aiDemos"), model: v.string() },
   handler: async (ctx, args) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    
     const demo = await ctx.db.get(args.demoId);
     if (!demo) throw new Error("Demo not found");
+    if (demo.userId !== userId) throw new Error("Not authorized");
+
+    // Clear selected version for this model so it defaults to the new (latest) one
+    if (demo.selectedOutputs?.[args.model]) {
+      const updatedSelectedOutputs = { ...demo.selectedOutputs };
+      delete updatedSelectedOutputs[args.model];
+      await ctx.db.patch(args.demoId, { selectedOutputs: updatedSelectedOutputs });
+    }
 
     const outputId = await ctx.db.insert("modelOutputs", {
       demoId: args.demoId,
@@ -204,6 +249,49 @@ export const createSingleModelOutput = mutation({
     });
 
     return outputId;
+  },
+});
+
+export const navigateModelVersion = mutation({
+  args: { 
+    demoId: v.id("aiDemos"), 
+    model: v.string(),
+    direction: v.union(v.literal("prev"), v.literal("next")),
+  },
+  handler: async (ctx, args) => {
+    const demo = await ctx.db.get(args.demoId);
+    if (!demo) throw new Error("Demo not found");
+    
+    // Get all outputs for this model, sorted by createdAt ascending
+    const allOutputs = await ctx.db
+      .query("modelOutputs")
+      .withIndex("by_demo", (q) => q.eq("demoId", args.demoId))
+      .collect();
+    
+    const versions = allOutputs
+      .filter(o => o.model === args.model)
+      .sort((a, b) => a.createdAt - b.createdAt);
+    
+    if (versions.length <= 1) return; // Nothing to navigate
+    
+    // Find current selected index
+    const currentSelectedId = demo.selectedOutputs?.[args.model];
+    let currentIndex = versions.length - 1; // Default to latest
+    if (currentSelectedId) {
+      const idx = versions.findIndex(o => o._id === currentSelectedId);
+      if (idx !== -1) currentIndex = idx;
+    }
+    
+    // Calculate new index
+    const newIndex = args.direction === "prev" 
+      ? Math.max(0, currentIndex - 1)
+      : Math.min(versions.length - 1, currentIndex + 1);
+    
+    if (newIndex === currentIndex) return; // Already at boundary
+    
+    // Update selectedOutputs
+    const selectedOutputs = { ...demo.selectedOutputs, [args.model]: versions[newIndex]._id };
+    await ctx.db.patch(args.demoId, { selectedOutputs });
   },
 });
 

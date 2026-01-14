@@ -23,6 +23,7 @@ export function DemoView() {
   );
   const createNewOutputs = useMutation(api.demos.createNewOutputs);
   const createSingleModelOutput = useMutation(api.demos.createSingleModelOutput);
+  const navigateModelVersion = useMutation(api.demos.navigateModelVersion);
   const [viewingSource, setViewingSource] = useState<{ model: string; css: string; html: string } | null>(null);
   const [fullscreenOutput, setFullscreenOutput] = useState<{ model: string; css: string; html: string } | null>(null);
   const [showModelPicker, setShowModelPicker] = useState(false);
@@ -112,7 +113,7 @@ export function DemoView() {
     );
   }
 
-  // Create a map of model -> output for quick lookup
+  // Create a map of model -> output for quick lookup (now includes versionIndex/versionCount)
   const outputsByModel = new Map(demo.outputs.map(o => [o.model, o]));
 
   // Get tiles to render: only selected models
@@ -122,6 +123,11 @@ export function DemoView() {
       model: m.id,
       output: outputsByModel.get(m.id) ?? null,
     }));
+
+  const handleVersionNav = async (model: string, direction: "prev" | "next") => {
+    if (!demoId) return;
+    await navigateModelVersion({ demoId: demoId as Id<"aiDemos">, model, direction });
+  };
 
   return (
     <div className="demo-view-page">
@@ -176,20 +182,22 @@ export function DemoView() {
               </div>
             )}
           </div>
-          <button
-            onClick={handleRegenerate}
-            className="btn btn-primary btn-regenerate"
-            disabled={selectedModels.size === 0}
-            title="Regenerate"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 2v6h-6" />
-              <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-              <path d="M3 22v-6h6" />
-              <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-            </svg>
-            <span className="btn-label">Regenerate</span>
-          </button>
+          {demo.isOwner && (
+            <button
+              onClick={handleRegenerate}
+              className="btn btn-primary btn-regenerate"
+              disabled={selectedModels.size === 0}
+              title="Regenerate"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 2v6h-6" />
+                <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                <path d="M3 22v-6h6" />
+                <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+              </svg>
+              <span className="btn-label">Regenerate</span>
+            </button>
+          )}
         </div>
       </header>
       
@@ -202,7 +210,38 @@ export function DemoView() {
           tilesToRender.map(({ model, output }) => (
             <div key={model} className="tile">
               <div className="tile-header">
-                <span className="model-name">{getModelName(model)}</span>
+                <div className="tile-header-left">
+                  <span className="model-name">{getModelName(model)}</span>
+                  {output && output.versionCount > 1 && (
+                    <div className="version-nav">
+                      <div className="version-nav-buttons">
+                        <button
+                          className="btn-version-nav"
+                          onClick={() => handleVersionNav(model, "prev")}
+                          disabled={output.versionIndex === 1}
+                          title="Previous version"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="15 18 9 12 15 6" />
+                          </svg>
+                        </button>
+                        <button
+                          className="btn-version-nav"
+                          onClick={() => handleVersionNav(model, "next")}
+                          disabled={output.versionIndex === output.versionCount}
+                          title="Next version"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="9 18 15 12 9 6" />
+                          </svg>
+                        </button>
+                      </div>
+                      <span className="version-indicator">
+                        v{output.versionIndex}/{output.versionCount}
+                      </span>
+                    </div>
+                  )}
+                </div>
                 {output?.status === "complete" ? (
                   <div className="tile-header-actions">
                     <button
@@ -227,18 +266,20 @@ export function DemoView() {
                         <polyline points="8 6 2 12 8 18" />
                       </svg>
                     </button>
-                    <button
-                      className="btn-tile-action"
-                      onClick={() => handleGenerateSingleModel(model)}
-                      title="Regenerate"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 2v6h-6" />
-                        <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-                        <path d="M3 22v-6h6" />
-                        <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-                      </svg>
-                    </button>
+                    {demo.isOwner && (
+                      <button
+                        className="btn-tile-action"
+                        onClick={() => handleGenerateSingleModel(model)}
+                        title="Regenerate"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 2v6h-6" />
+                          <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                          <path d="M3 22v-6h6" />
+                          <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 ) : output ? (
                   <span className={`status status-${output.status}`}>
@@ -251,15 +292,17 @@ export function DemoView() {
                 {!output && (
                   <div className="tile-empty">
                     <p>Not generated yet</p>
-                    <button
-                      className="btn btn-primary"
-                      onClick={() => handleGenerateSingleModel(model)}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polygon points="5 3 19 12 5 21 5 3" />
-                      </svg>
-                      Generate
-                    </button>
+                    {demo.isOwner && (
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => handleGenerateSingleModel(model)}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                        Generate
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -280,18 +323,20 @@ export function DemoView() {
                 {output?.status === "error" && (
                   <div className="tile-error">
                     <span>Error: {output.error}</span>
-                    <button
-                      className="btn btn-retry"
-                      onClick={() => handleGenerateSingleModel(model)}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 2v6h-6" />
-                        <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-                        <path d="M3 22v-6h6" />
-                        <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-                      </svg>
-                      Retry
-                    </button>
+                    {demo.isOwner && (
+                      <button
+                        className="btn btn-retry"
+                        onClick={() => handleGenerateSingleModel(model)}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 2v6h-6" />
+                          <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                          <path d="M3 22v-6h6" />
+                          <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                        </svg>
+                        Retry
+                      </button>
+                    )}
                   </div>
                 )}
                 

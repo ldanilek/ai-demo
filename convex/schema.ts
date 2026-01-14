@@ -12,6 +12,8 @@ export default defineSchema({
     createdAt: v.number(),
     archived: v.optional(v.boolean()),
     selectedModels: v.optional(v.array(v.string())), // Models to display for this demo
+    // Map of model id -> selected outputId for version navigation
+    selectedOutputs: v.optional(v.record(v.string(), v.id("modelOutputs"))),
   }).index("by_user", ["userId"]),
   
   // Individual model outputs for a demo
