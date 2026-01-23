@@ -12,6 +12,7 @@ import type * as auth from "../auth.js";
 import type * as demos from "../demos.js";
 import type * as generate from "../generate.js";
 import type * as http from "../http.js";
+import type * as models from "../models.js";
 import type * as retrier from "../retrier.js";
 
 import type {
@@ -25,6 +26,7 @@ declare const fullApi: ApiFromModules<{
   demos: typeof demos;
   generate: typeof generate;
   http: typeof http;
+  models: typeof models;
   retrier: typeof retrier;
 }>;
 

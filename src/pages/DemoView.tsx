@@ -21,8 +21,58 @@ export function DemoView() {
       }
     }
   );
-  const createNewOutputs = useMutation(api.demos.createNewOutputs);
-  const createSingleModelOutput = useMutation(api.demos.createSingleModelOutput);
+  const createNewOutputs = useMutation(api.demos.createNewOutputs).withOptimisticUpdate(
+    (localStore, args) => {
+      const currentDemo = localStore.getQuery(api.demos.getDemo, { demoId: args.demoId });
+      if (!currentDemo) return;
+      
+      // Add pending outputs for each model being regenerated
+      const existingOutputs = currentDemo.outputs.filter(o => !args.models.includes(o.model));
+      const pendingOutputs = args.models.map(model => ({
+        _id: `pending-${model}` as Id<"modelOutputs">,
+        _creationTime: 0,
+        demoId: args.demoId,
+        model,
+        html: "",
+        css: "",
+        status: "pending" as const,
+        createdAt: 0,
+        versionIndex: 1,
+        versionCount: 1,
+      }));
+      
+      localStore.setQuery(api.demos.getDemo, { demoId: args.demoId }, {
+        ...currentDemo,
+        outputs: [...existingOutputs, ...pendingOutputs],
+      });
+    }
+  );
+  const createSingleModelOutput = useMutation(api.demos.createSingleModelOutput).withOptimisticUpdate(
+    (localStore, args) => {
+      const currentDemo = localStore.getQuery(api.demos.getDemo, { demoId: args.demoId });
+      if (!currentDemo) return;
+      
+      // Replace existing output for this model with pending, or add new pending output
+      const existingOutputs = currentDemo.outputs.filter(o => o.model !== args.model);
+      const pendingOutput = {
+        _id: `pending-${args.model}` as Id<"modelOutputs">,
+        _creationTime: 0,
+        demoId: args.demoId,
+        model: args.model,
+        html: "",
+        css: "",
+        status: "pending" as const,
+        createdAt: 0,
+        versionIndex: 1,
+        versionCount: 1,
+      };
+      
+      localStore.setQuery(api.demos.getDemo, { demoId: args.demoId }, {
+        ...currentDemo,
+        outputs: [...existingOutputs, pendingOutput],
+      });
+    }
+  );
   const navigateModelVersion = useMutation(api.demos.navigateModelVersion);
   const [viewingSource, setViewingSource] = useState<{ model: string; css: string; html: string } | null>(null);
   const [fullscreenOutput, setFullscreenOutput] = useState<{ model: string; css: string; html: string } | null>(null);

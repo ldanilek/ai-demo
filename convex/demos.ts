@@ -3,26 +3,10 @@ import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { auth } from "./auth";
 import { retrier } from "./retrier";
+import { ALL_MODELS } from "./models";
 
-// All available models with default enabled state
-export const ALL_MODELS = [
-  { id: "gpt-4o", defaultEnabled: true },
-  { id: "gpt-4o-mini", defaultEnabled: false },
-  { id: "gpt-5.2", defaultEnabled: true },
-  { id: "claude-opus-4-5-20251101", defaultEnabled: true },
-  { id: "claude-opus-4-1-20250805", defaultEnabled: false },
-  { id: "claude-sonnet-4-20250514", defaultEnabled: true },
-  { id: "claude-3-5-haiku-latest", defaultEnabled: true },
-  { id: "claude-haiku-4-5-20251001", defaultEnabled: false },
-  { id: "claude-sonnet-4-5-20250929", defaultEnabled: false },
-  { id: "gemini-2.5-flash", defaultEnabled: true },
-  { id: "gemini-3-flash-preview", defaultEnabled: true },
-  { id: "gemini-3-pro-preview", defaultEnabled: false },
-  { id: "grok-4", defaultEnabled: true },
-] as const;
-
-// Legacy export for backward compatibility
-export const MODELS = ALL_MODELS.map(m => m.id);
+// Model ID list for ordering outputs (widened to string[] for indexOf with dynamic model IDs)
+const MODEL_IDS: string[] = ALL_MODELS.map(m => m.id);
 
 export const getDemo = query({
   args: { demoId: v.id("aiDemos") },
@@ -50,12 +34,10 @@ export const getDemo = query({
       list.sort((a, b) => a.createdAt - b.createdAt);
     }
     
-    // Build outputs with version info
-    const outputs = MODELS
-      .map((model) => {
-        const versions = outputsByModel.get(model);
-        if (!versions || versions.length === 0) return undefined;
-        
+    // Build outputs with version info for all models that have data
+    // (handles client-server version skew - unknown models still get returned)
+    const outputs = Array.from(outputsByModel.entries())
+      .map(([model, versions]) => {
         // Determine which output to show
         const selectedOutputId = demo.selectedOutputs?.[model];
         let selectedIndex = versions.length - 1; // Default to latest
@@ -71,7 +53,16 @@ export const getDemo = query({
           versionCount: versions.length,
         };
       })
-      .filter((o): o is NonNullable<typeof o> => o !== undefined);
+      // Sort by MODEL_IDS order, unknown models go to end
+      .sort((a, b) => {
+        const aIndex = MODEL_IDS.indexOf(a.model);
+        const bIndex = MODEL_IDS.indexOf(b.model);
+        // Unknown models (-1) go to the end
+        if (aIndex === -1 && bIndex === -1) return 0;
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        return aIndex - bIndex;
+      });
     
     // For old demos without selectedModels, use default enabled models
     const selectedModels = demo.selectedModels ?? ALL_MODELS.filter(m => m.defaultEnabled).map(m => m.id);

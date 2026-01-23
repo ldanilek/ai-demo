@@ -8,6 +8,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createXai } from "@ai-sdk/xai";
+import { ALL_MODELS, PROVIDERS } from "./models";
 
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -25,17 +26,24 @@ const xai = createXai({
   apiKey: process.env.XAI_API_KEY,
 });
 
-function getModelProvider(modelName: string) {
-  if (modelName.startsWith("gpt")) {
-    return openai(modelName);
-  } else if (modelName.startsWith("claude")) {
-    return anthropic(modelName);
-  } else if (modelName.startsWith("gemini")) {
-    return google(modelName);
-  } else if (modelName.startsWith("grok")) {
-    return xai(modelName);
+function getModelProvider(modelId: string) {
+  const modelConfig = ALL_MODELS.find(m => m.id === modelId);
+  if (!modelConfig) {
+    throw new Error(`Unknown model "${modelId}". Add it to convex/models.ts.`);
   }
-  throw new Error(`Unknown model: ${modelName}`);
+  
+  // TypeScript enforces exhaustive matching - if a new provider is added
+  // to PROVIDERS, this will error until the case is added here
+  switch (modelConfig.provider) {
+    case PROVIDERS.openai:
+      return openai(modelId);
+    case PROVIDERS.anthropic:
+      return anthropic(modelId);
+    case PROVIDERS.google:
+      return google(modelId);
+    case PROVIDERS.xai:
+      return xai(modelId);
+  }
 }
 
 const SYSTEM_PROMPT = `You are a creative HTML/CSS/JavaScript generator. Given a user's description, generate beautiful, functional, interactive code.
