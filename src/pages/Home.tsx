@@ -4,6 +4,13 @@ import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { useAuthActions } from "@convex-dev/auth/react";
 
+const EXAMPLE_PROMPTS = [
+  "grandfather clock",
+  "calculator",
+  "a pelican riding a bicycle",
+  "microsoft paint",
+];
+
 export function Home() {
   const { isAuthenticated } = useConvexAuth();
   const navigate = useNavigate();
@@ -67,7 +74,7 @@ export function Home() {
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe what you want to see... e.g., 'an analog clock', 'a simple 4-function calculator', 'a pelican riding a bicycle'"
+              placeholder={`Describe what you want to see... e.g. ${EXAMPLE_PROMPTS.map((p) => `'${p}'`).join(", ")}`}
               rows={4}
             />
             <button type="submit" disabled={!prompt.trim() || isCreating} className="btn btn-primary">
