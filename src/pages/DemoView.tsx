@@ -3,7 +3,20 @@ import { useParams, Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { ALL_MODELS, getModelName } from "../models";
+import { ALL_MODELS, getModelName, PROVIDERS } from "../models";
+
+// Get provider key for CSS class (e.g., "openai", "anthropic")
+function getProviderKey(modelId: string): string {
+  const model = ALL_MODELS.find(m => m.id === modelId);
+  if (!model) return "unknown";
+  return Object.entries(PROVIDERS).find(([, v]) => v === model.provider)?.[0] ?? "unknown";
+}
+
+// Get provider display name (e.g., "OpenAI", "Anthropic")
+function getProviderName(modelId: string): string {
+  const model = ALL_MODELS.find(m => m.id === modelId);
+  return model?.provider ?? "";
+}
 
 export function DemoView() {
   const { demoId } = useParams<{ demoId: string }>();
@@ -259,7 +272,7 @@ export function DemoView() {
         ) : (
           tilesToRender.map(({ model, output }) => (
             <div key={model} className="tile">
-              <div className="tile-header">
+              <div className={`tile-header provider-${getProviderKey(model)}`} data-provider={getProviderName(model)}>
                 <div className="tile-header-left">
                   <span className="model-name">{getModelName(model)}</span>
                   {output && output.versionCount > 1 && (
