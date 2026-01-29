@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { paginationOptsValidator } from "convex/server";
 import { internal } from "./_generated/api";
 import { auth } from "./auth";
 import { retrier } from "./retrier";
@@ -72,18 +73,30 @@ export const getDemo = query({
 });
 
 export const listMyDemos = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { 
+    paginationOpts: paginationOptsValidator,
+    showArchived: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
     const userId = await auth.getUserId(ctx);
-    if (!userId) return [];
+    if (!userId) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
     
-    const demos = await ctx.db
+    // Use compound index to query demos by archived status
+    // lte(false) matches both undefined and false, excluding true
+    const results = await ctx.db
       .query("aiDemos")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .withIndex("by_user_archived", (q) => {
+        const byUser = q.eq("userId", userId);
+        return args.showArchived 
+          ? byUser.eq("archived", true)
+          : byUser.lte("archived", false);
+      })
       .order("desc")
-      .collect();
+      .paginate(args.paginationOpts);
     
-    return demos.filter((demo) => !demo.archived);
+    return results;
   },
 });
 
@@ -152,6 +165,20 @@ export const archiveDemo = mutation({
     if (demo.userId !== userId) throw new Error("Not authorized");
     
     await ctx.db.patch(args.demoId, { archived: true });
+  },
+});
+
+export const unarchiveDemo = mutation({
+  args: { demoId: v.id("aiDemos") },
+  handler: async (ctx, args) => {
+    const userId = await auth.getUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    
+    const demo = await ctx.db.get(args.demoId);
+    if (!demo) throw new Error("Demo not found");
+    if (demo.userId !== userId) throw new Error("Not authorized");
+    
+    await ctx.db.patch(args.demoId, { archived: undefined });
   },
 });
 

@@ -14,7 +14,9 @@ export default defineSchema({
     selectedModels: v.optional(v.array(v.string())), // Models to display for this demo
     // Map of model id -> selected outputId for version navigation
     selectedOutputs: v.optional(v.record(v.string(), v.id("modelOutputs"))),
-  }).index("by_user", ["userId"]),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_archived", ["userId", "archived"]),
   
   // Individual model outputs for a demo
   modelOutputs: defineTable({
