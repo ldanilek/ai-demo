@@ -17,7 +17,7 @@
     "@convex-dev/action-retrier": "^0.3.0",
     "@convex-dev/auth": "^0.0.90",
     "ai": "^6.0.27",
-    "convex": "^1.31.3",
+    "convex": "https://github.com/ldanilek/convex-backend/releases/download/convex-preview-20260219-195445/convex-1.32.0.tgz",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.12.0"
