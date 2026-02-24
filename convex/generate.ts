@@ -8,7 +8,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createXai } from "@ai-sdk/xai";
-import { ALL_MODELS, PROVIDERS, resolveModelId } from "./models";
+import { ALL_MODELS, PROVIDERS, isKnownModel, isModelGeneratable } from "./models";
 
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -27,23 +27,28 @@ const xai = createXai({
 });
 
 function getModelProvider(modelId: string) {
-  const resolvedModelId = resolveModelId(modelId);
-  const modelConfig = ALL_MODELS.find(m => m.id === resolvedModelId);
+  if (!isModelGeneratable(modelId)) {
+    if (isKnownModel(modelId)) {
+      throw new Error(`Model "${modelId}" is legacy and cannot be regenerated.`);
+    }
+    throw new Error(`Unknown model "${modelId}". Add it to convex/models.ts.`);
+  }
+  const modelConfig = ALL_MODELS.find(m => m.id === modelId);
   if (!modelConfig) {
-    throw new Error(`Unknown model "${resolvedModelId}". Add it to convex/models.ts.`);
+    throw new Error(`Unknown model "${modelId}". Add it to convex/models.ts.`);
   }
   
   // TypeScript enforces exhaustive matching - if a new provider is added
   // to PROVIDERS, this will error until the case is added here
   switch (modelConfig.provider) {
     case PROVIDERS.openai:
-      return openai(resolvedModelId);
+      return openai(modelId);
     case PROVIDERS.anthropic:
-      return anthropic(resolvedModelId);
+      return anthropic(modelId);
     case PROVIDERS.google:
-      return google(resolvedModelId);
+      return google(modelId);
     case PROVIDERS.xai:
-      return xai(resolvedModelId);
+      return xai(modelId);
   }
 }
 

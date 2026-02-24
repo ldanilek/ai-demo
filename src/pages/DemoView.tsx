@@ -3,19 +3,24 @@ import { useParams, Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { ALL_MODELS, getModelName, PROVIDERS } from "../models";
+import {
+  ALL_MODELS,
+  getModelName,
+  getModelProvider,
+  isKnownModel,
+  isModelGeneratable,
+} from "../models";
 
 // Get provider key for CSS class (e.g., "openai", "anthropic")
 function getProviderKey(modelId: string): string {
-  const model = ALL_MODELS.find(m => m.id === modelId);
-  if (!model) return "unknown";
-  return Object.entries(PROVIDERS).find(([, v]) => v === model.provider)?.[0] ?? "unknown";
+  const provider = getModelProvider(modelId);
+  if (!provider) return "unknown";
+  return provider.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 // Get provider display name (e.g., "OpenAI", "Anthropic")
 function getProviderName(modelId: string): string {
-  const model = ALL_MODELS.find(m => m.id === modelId);
-  return model?.provider ?? "";
+  return getModelProvider(modelId);
 }
 
 export function DemoView() {
@@ -111,7 +116,12 @@ export function DemoView() {
   }, [showModelPicker]);
 
   // Use selectedModels from Convex
-  const selectedModels = new Set(demo?.selectedModels ?? []);
+  const selectedModels = Array.from(new Set(demo?.selectedModels ?? []));
+  const selectedModelSet = new Set(selectedModels);
+  const selectedGeneratableModels = selectedModels.filter(isModelGeneratable);
+  const legacySelectedModels = selectedModels.filter(
+    modelId => !isModelGeneratable(modelId) && isKnownModel(modelId)
+  );
 
   const toggleModel = async (modelId: string) => {
     if (!demoId || !demo) return;
@@ -128,15 +138,18 @@ export function DemoView() {
   };
 
   const handleRegenerate = async () => {
-    if (!demoId || selectedModels.size === 0) return;
+    if (!demoId || selectedGeneratableModels.length === 0) return;
     // createNewOutputs creates the output records and schedules AI generation
     // for each one internally (via ctx.scheduler.runAfter) — no separate
     // action call needed from the client.
-    await createNewOutputs({ demoId: demoId as Id<"aiDemos">, models: Array.from(selectedModels) });
+    await createNewOutputs({
+      demoId: demoId as Id<"aiDemos">,
+      models: selectedGeneratableModels,
+    });
   };
 
   const handleGenerateSingleModel = async (model: string) => {
-    if (!demoId) return;
+    if (!demoId || !isModelGeneratable(model)) return;
     // createSingleModelOutput creates the output record and schedules AI
     // generation internally — no separate action call needed.
     await createSingleModelOutput({ 
@@ -179,13 +192,11 @@ export function DemoView() {
   // Create a map of model -> output for quick lookup (now includes versionIndex/versionCount)
   const outputsByModel = new Map(demo.outputs.map(o => [o.model, o]));
 
-  // Get tiles to render: only selected models
-  const tilesToRender = ALL_MODELS
-    .filter(m => selectedModels.has(m.id))
-    .map(m => ({
-      model: m.id,
-      output: outputsByModel.get(m.id) ?? null,
-    }));
+  // Get tiles to render: selected models, including legacy view-only models.
+  const tilesToRender = selectedModels.map(modelId => ({
+    model: modelId,
+    output: outputsByModel.get(modelId) ?? null,
+  }));
 
   const handleVersionNav = async (model: string, direction: "prev" | "next") => {
     if (!demoId) return;
@@ -215,7 +226,7 @@ export function DemoView() {
             <button
               onClick={() => setShowModelPicker(!showModelPicker)}
               className="btn btn-secondary btn-models"
-              title={`Models (${selectedModels.size})`}
+              title={`Models (${selectedModels.length})`}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="7" height="7" />
@@ -223,7 +234,7 @@ export function DemoView() {
                 <rect x="14" y="14" width="7" height="7" />
                 <rect x="3" y="14" width="7" height="7" />
               </svg>
-              <span className="btn-label">Models ({selectedModels.size})</span>
+              <span className="btn-label">Models ({selectedModels.length})</span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`chevron ${showModelPicker ? 'open' : ''}`}>
                 <polyline points="6 9 12 15 18 9" />
               </svg>
@@ -235,10 +246,21 @@ export function DemoView() {
                     <label key={model.id} className="model-checkbox">
                       <input
                         type="checkbox"
-                        checked={selectedModels.has(model.id)}
+                        checked={selectedModelSet.has(model.id)}
                         onChange={() => toggleModel(model.id)}
                       />
                       <span className="model-checkbox-label">{model.name}</span>
+                    </label>
+                  ))}
+                  {legacySelectedModels.map((modelId) => (
+                    <label key={modelId} className="model-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={true}
+                        disabled={true}
+                        readOnly={true}
+                      />
+                      <span className="model-checkbox-label">{getModelName(modelId)} (legacy)</span>
                     </label>
                   ))}
                 </div>
@@ -249,7 +271,7 @@ export function DemoView() {
             <button
               onClick={handleRegenerate}
               className="btn btn-primary btn-regenerate"
-              disabled={selectedModels.size === 0}
+              disabled={selectedGeneratableModels.length === 0}
               title="Regenerate"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -329,7 +351,7 @@ export function DemoView() {
                         <polyline points="8 6 2 12 8 18" />
                       </svg>
                     </button>
-                    {demo.isOwner && (
+                    {demo.isOwner && isModelGeneratable(model) && (
                       <button
                         className="btn-tile-action"
                         onClick={() => handleGenerateSingleModel(model)}
@@ -355,7 +377,7 @@ export function DemoView() {
                 {!output && (
                   <div className="tile-empty">
                     <p>Not generated yet</p>
-                    {demo.isOwner && (
+                    {demo.isOwner && isModelGeneratable(model) && (
                       <button
                         className="btn btn-primary"
                         onClick={() => handleGenerateSingleModel(model)}
@@ -386,7 +408,7 @@ export function DemoView() {
                 {output?.status === "error" && (
                   <div className="tile-error">
                     <span>Error: {output.error}</span>
-                    {demo.isOwner && (
+                    {demo.isOwner && isModelGeneratable(model) && (
                       <button
                         className="btn btn-retry"
                         onClick={() => handleGenerateSingleModel(model)}

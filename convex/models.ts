@@ -26,17 +26,37 @@ export const ALL_MODELS = [
 
 export type ModelId = typeof ALL_MODELS[number]["id"];
 
-const MODEL_ID_ALIASES: Record<string, ModelId> = {
-  // Claude 3.5 Haiku was retired by Anthropic; keep old IDs working for existing demos.
-  "claude-3-5-haiku-latest": "claude-haiku-4-5-20251001",
-};
+// Legacy models remain viewable in old demos but are not generatable.
+export const LEGACY_MODELS = [
+  { id: "claude-3-5-haiku-latest", name: "Haiku 3.5", provider: PROVIDERS.anthropic },
+] as const;
 
-export function resolveModelId(modelId: string): string {
-  return MODEL_ID_ALIASES[modelId] ?? modelId;
+type ProviderName = (typeof PROVIDERS)[keyof typeof PROVIDERS];
+
+const MODEL_METADATA = new Map<string, { name: string; provider: ProviderName; generatable: boolean }>([
+  ...ALL_MODELS.map(model => [
+    model.id,
+    { name: model.name, provider: model.provider, generatable: true },
+  ] as const),
+  ...LEGACY_MODELS.map(model => [
+    model.id,
+    { name: model.name, provider: model.provider, generatable: false },
+  ] as const),
+]);
+
+export function isModelGeneratable(modelId: string): boolean {
+  return MODEL_METADATA.get(modelId)?.generatable ?? false;
+}
+
+export function isKnownModel(modelId: string): boolean {
+  return MODEL_METADATA.has(modelId);
 }
 
 // Helper to get display name from model id
 export function getModelName(modelId: string): string {
-  const model = ALL_MODELS.find(m => m.id === resolveModelId(modelId));
-  return model?.name ?? modelId;
+  return MODEL_METADATA.get(modelId)?.name ?? modelId;
+}
+
+export function getModelProvider(modelId: string): string {
+  return MODEL_METADATA.get(modelId)?.provider ?? "";
 }
