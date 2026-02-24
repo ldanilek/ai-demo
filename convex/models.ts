@@ -13,8 +13,7 @@ export const ALL_MODELS = [
   { id: "gpt-5.2", name: "GPT-5.2", defaultEnabled: true, provider: PROVIDERS.openai },
   { id: "gpt-5.2-codex", name: "GPT-5.2 Codex", defaultEnabled: true, provider: PROVIDERS.openai },
   { id: "claude-opus-4-5-20251101", name: "Opus 4.5", defaultEnabled: true, provider: PROVIDERS.anthropic },
-  { id: "claude-3-5-haiku-latest", name: "Haiku 3.5", defaultEnabled: true, provider: PROVIDERS.anthropic },
-  { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5", defaultEnabled: false, provider: PROVIDERS.anthropic },
+  { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5", defaultEnabled: true, provider: PROVIDERS.anthropic },
   { id: "claude-sonnet-4-20250514", name: "Sonnet 4", defaultEnabled: true, provider: PROVIDERS.anthropic },
   { id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5", defaultEnabled: false, provider: PROVIDERS.anthropic },
   { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", defaultEnabled: true, provider: PROVIDERS.google },
@@ -27,8 +26,17 @@ export const ALL_MODELS = [
 
 export type ModelId = typeof ALL_MODELS[number]["id"];
 
+const MODEL_ID_ALIASES: Record<string, ModelId> = {
+  // Claude 3.5 Haiku was retired by Anthropic; keep old IDs working for existing demos.
+  "claude-3-5-haiku-latest": "claude-haiku-4-5-20251001",
+};
+
+export function resolveModelId(modelId: string): string {
+  return MODEL_ID_ALIASES[modelId] ?? modelId;
+}
+
 // Helper to get display name from model id
 export function getModelName(modelId: string): string {
-  const model = ALL_MODELS.find(m => m.id === modelId);
+  const model = ALL_MODELS.find(m => m.id === resolveModelId(modelId));
   return model?.name ?? modelId;
 }

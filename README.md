@@ -75,6 +75,6 @@ Currently configured models:
 - `gpt-4o` (OpenAI)
 - `gpt-4o-mini` (OpenAI)
 - `claude-sonnet-4-20250514` (Anthropic)
-- `claude-3-5-haiku-latest` (Anthropic)
+- `claude-haiku-4-5-20251001` (Anthropic)
 
-You can modify the models in `convex/demos.ts`.
+You can modify the models in `convex/models.ts`.

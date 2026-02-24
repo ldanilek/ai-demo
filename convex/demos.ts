@@ -4,7 +4,7 @@ import { paginationOptsValidator } from "convex/server";
 import { internal } from "./_generated/api";
 import { auth } from "./auth";
 import { retrier } from "./retrier";
-import { ALL_MODELS } from "./models";
+import { ALL_MODELS, resolveModelId } from "./models";
 
 // Model ID list for ordering outputs (widened to string[] for indexOf with dynamic model IDs)
 const MODEL_IDS: string[] = ALL_MODELS.map(m => m.id);
@@ -26,9 +26,10 @@ export const getDemo = query({
     // Group outputs by model, sorted by createdAt ascending (oldest first)
     const outputsByModel = new Map<string, typeof allOutputs>();
     for (const output of allOutputs) {
-      const list = outputsByModel.get(output.model) ?? [];
-      list.push(output);
-      outputsByModel.set(output.model, list);
+      const normalizedModel = resolveModelId(output.model);
+      const list = outputsByModel.get(normalizedModel) ?? [];
+      list.push({ ...output, model: normalizedModel });
+      outputsByModel.set(normalizedModel, list);
     }
     // Sort each model's outputs by createdAt ascending
     for (const list of outputsByModel.values()) {
@@ -40,7 +41,9 @@ export const getDemo = query({
     const outputs = Array.from(outputsByModel.entries())
       .map(([model, versions]) => {
         // Determine which output to show
-        const selectedOutputId = demo.selectedOutputs?.[model];
+        const selectedOutputId = Object.entries(demo.selectedOutputs ?? {}).find(
+          ([selectedModel]) => resolveModelId(selectedModel) === model
+        )?.[1];
         let selectedIndex = versions.length - 1; // Default to latest
         if (selectedOutputId) {
           const idx = versions.findIndex(o => o._id === selectedOutputId);
@@ -66,7 +69,11 @@ export const getDemo = query({
       });
     
     // For old demos without selectedModels, use default enabled models
-    const selectedModels = demo.selectedModels ?? ALL_MODELS.filter(m => m.defaultEnabled).map(m => m.id);
+    const selectedModels = Array.from(
+      new Set(
+        (demo.selectedModels ?? ALL_MODELS.filter(m => m.defaultEnabled).map(m => m.id)).map(resolveModelId)
+      )
+    );
     
     return { ...demo, outputs, selectedModels, isOwner };
   },
@@ -188,7 +195,8 @@ export const updateSelectedModels = mutation({
     const demo = await ctx.db.get(args.demoId);
     if (!demo) throw new Error("Demo not found");
     
-    await ctx.db.patch(args.demoId, { selectedModels: args.selectedModels });
+    const selectedModels = Array.from(new Set(args.selectedModels.map(resolveModelId)));
+    await ctx.db.patch(args.demoId, { selectedModels });
   },
 });
 
@@ -206,7 +214,9 @@ export const createNewOutputs = mutation({
     if (demo.selectedOutputs) {
       const updatedSelectedOutputs = { ...demo.selectedOutputs };
       for (const model of args.models) {
+        const normalizedModel = resolveModelId(model);
         delete updatedSelectedOutputs[model];
+        delete updatedSelectedOutputs[normalizedModel];
       }
       await ctx.db.patch(args.demoId, { selectedOutputs: updatedSelectedOutputs });
     }
@@ -214,9 +224,10 @@ export const createNewOutputs = mutation({
     // Create new pending outputs and schedule AI generation for each model.
     // Uses the action retrier to retry on transient failures with exponential backoff.
     for (const model of args.models) {
+      const normalizedModel = resolveModelId(model);
       const outputId = await ctx.db.insert("modelOutputs", {
         demoId: args.demoId,
-        model,
+        model: normalizedModel,
         html: "",
         css: "",
         status: "pending",
@@ -226,7 +237,7 @@ export const createNewOutputs = mutation({
       await retrier.run(ctx, internal.generate.generateSingleModel, {
         outputId,
         prompt: demo.prompt,
-        model,
+        model: normalizedModel,
       });
     }
   },
@@ -243,15 +254,23 @@ export const createSingleModelOutput = mutation({
     if (demo.userId !== userId) throw new Error("Not authorized");
 
     // Clear selected version for this model so it defaults to the new (latest) one
-    if (demo.selectedOutputs?.[args.model]) {
+    const normalizedModel = resolveModelId(args.model);
+    const hasSelectedVersionForModel = Object.keys(demo.selectedOutputs ?? {}).some(
+      modelId => resolveModelId(modelId) === normalizedModel
+    );
+    if (hasSelectedVersionForModel) {
       const updatedSelectedOutputs = { ...demo.selectedOutputs };
-      delete updatedSelectedOutputs[args.model];
+      for (const modelId of Object.keys(updatedSelectedOutputs)) {
+        if (resolveModelId(modelId) === normalizedModel) {
+          delete updatedSelectedOutputs[modelId];
+        }
+      }
       await ctx.db.patch(args.demoId, { selectedOutputs: updatedSelectedOutputs });
     }
 
     const outputId = await ctx.db.insert("modelOutputs", {
       demoId: args.demoId,
-      model: args.model,
+      model: normalizedModel,
       html: "",
       css: "",
       status: "pending",
@@ -263,7 +282,7 @@ export const createSingleModelOutput = mutation({
     await retrier.run(ctx, internal.generate.generateSingleModel, {
       outputId,
       prompt: demo.prompt,
-      model: args.model,
+      model: normalizedModel,
     });
 
     return outputId;
@@ -279,6 +298,7 @@ export const navigateModelVersion = mutation({
   handler: async (ctx, args) => {
     const demo = await ctx.db.get(args.demoId);
     if (!demo) throw new Error("Demo not found");
+    const normalizedModel = resolveModelId(args.model);
     
     // Get all outputs for this model, sorted by createdAt ascending
     const allOutputs = await ctx.db
@@ -287,13 +307,15 @@ export const navigateModelVersion = mutation({
       .collect();
     
     const versions = allOutputs
-      .filter(o => o.model === args.model)
+      .filter(o => resolveModelId(o.model) === normalizedModel)
       .sort((a, b) => a.createdAt - b.createdAt);
     
     if (versions.length <= 1) return; // Nothing to navigate
     
     // Find current selected index
-    const currentSelectedId = demo.selectedOutputs?.[args.model];
+    const currentSelectedId = Object.entries(demo.selectedOutputs ?? {}).find(
+      ([modelId]) => resolveModelId(modelId) === normalizedModel
+    )?.[1];
     let currentIndex = versions.length - 1; // Default to latest
     if (currentSelectedId) {
       const idx = versions.findIndex(o => o._id === currentSelectedId);
@@ -308,7 +330,10 @@ export const navigateModelVersion = mutation({
     if (newIndex === currentIndex) return; // Already at boundary
     
     // Update selectedOutputs
-    const selectedOutputs = { ...demo.selectedOutputs, [args.model]: versions[newIndex]._id };
+    const selectedOutputs = { ...demo.selectedOutputs, [normalizedModel]: versions[newIndex]._id };
+    if (normalizedModel !== args.model) {
+      delete selectedOutputs[args.model];
+    }
     await ctx.db.patch(args.demoId, { selectedOutputs });
   },
 });

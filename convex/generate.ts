@@ -8,7 +8,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createXai } from "@ai-sdk/xai";
-import { ALL_MODELS, PROVIDERS } from "./models";
+import { ALL_MODELS, PROVIDERS, resolveModelId } from "./models";
 
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -27,22 +27,23 @@ const xai = createXai({
 });
 
 function getModelProvider(modelId: string) {
-  const modelConfig = ALL_MODELS.find(m => m.id === modelId);
+  const resolvedModelId = resolveModelId(modelId);
+  const modelConfig = ALL_MODELS.find(m => m.id === resolvedModelId);
   if (!modelConfig) {
-    throw new Error(`Unknown model "${modelId}". Add it to convex/models.ts.`);
+    throw new Error(`Unknown model "${resolvedModelId}". Add it to convex/models.ts.`);
   }
   
   // TypeScript enforces exhaustive matching - if a new provider is added
   // to PROVIDERS, this will error until the case is added here
   switch (modelConfig.provider) {
     case PROVIDERS.openai:
-      return openai(modelId);
+      return openai(resolvedModelId);
     case PROVIDERS.anthropic:
-      return anthropic(modelId);
+      return anthropic(resolvedModelId);
     case PROVIDERS.google:
-      return google(modelId);
+      return google(resolvedModelId);
     case PROVIDERS.xai:
-      return xai(modelId);
+      return xai(resolvedModelId);
   }
 }
 
