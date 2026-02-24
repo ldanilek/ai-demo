@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "convex/react";
 import { useParams, Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
+import usePresence from "@convex-dev/presence/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import {
@@ -23,8 +24,47 @@ function getProviderName(modelId: string): string {
   return getModelProvider(modelId);
 }
 
+const PRESENCE_COLORS = [
+  "#00f5d4",
+  "#9b5de5",
+  "#f15bb5",
+  "#4285f4",
+  "#10a37f",
+  "#e53e3e",
+  "#ff8a00",
+];
+
+function getPresenceColor(seed: string): string {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  return PRESENCE_COLORS[Math.abs(hash) % PRESENCE_COLORS.length];
+}
+
+function getInitials(name: string | undefined): string {
+  if (!name) return "";
+  const words = name
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.replace(/[^a-zA-Z0-9]/g, ""))
+    .filter(Boolean);
+
+  if (words.length === 0) return "";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return `${words[0][0]}${words[1][0]}`.toUpperCase();
+}
+
 export function DemoView() {
   const { demoId } = useParams<{ demoId: string }>();
+  const currentViewer = useQuery(api.presence.currentViewer, {});
+  const presenceState = usePresence(
+    api.presence,
+    demoId ? `demo:${demoId}` : "demo:loading",
+    currentViewer?.userId ?? "viewer:loading",
+    5000,
+  );
   const demo = useQuery(api.demos.getDemo, { 
     demoId: demoId as Id<"aiDemos"> 
   });
@@ -119,6 +159,7 @@ export function DemoView() {
   const selectedModels = Array.from(new Set(demo?.selectedModels ?? []));
   const selectedModelSet = new Set(selectedModels);
   const selectedGeneratableModels = selectedModels.filter(isModelGeneratable);
+  const activeViewers = (presenceState ?? []).filter((viewer) => viewer.online);
   const legacySelectedModels = selectedModels.filter(
     modelId => !isModelGeneratable(modelId) && isKnownModel(modelId)
   );
@@ -222,6 +263,41 @@ export function DemoView() {
           </svg>
         </button>
         <div className="header-actions">
+          {activeViewers.length > 0 && (
+            <div className="presence-indicator">
+              <div className="presence-avatars">
+                {activeViewers.slice(0, 7).map((viewer, index) => {
+                  const initials = getInitials(viewer.name);
+                  return (
+                    <div
+                      key={viewer.userId}
+                      className="presence-avatar"
+                      title={viewer.name ?? viewer.userId}
+                      style={{
+                        backgroundColor: getPresenceColor(viewer.userId),
+                        zIndex: activeViewers.length - index,
+                      }}
+                    >
+                      {initials || (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                          <circle cx="12" cy="7" r="4" />
+                        </svg>
+                      )}
+                    </div>
+                  );
+                })}
+                {activeViewers.length > 7 && (
+                  <div
+                    className="presence-avatar presence-avatar-more"
+                    title={`${activeViewers.length - 7} more viewers`}
+                  >
+                    +{activeViewers.length - 7}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           <div className="models-dropdown-container" ref={dropdownRef}>
             <button
               onClick={() => setShowModelPicker(!showModelPicker)}

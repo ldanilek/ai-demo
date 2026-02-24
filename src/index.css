@@ -884,8 +884,50 @@ body::before {
 /* Header Actions */
 .header-actions {
   display: flex;
+  align-items: center;
   gap: 12px;
   margin-left: 16px;
+}
+
+.presence-indicator {
+  display: flex;
+  align-items: center;
+}
+
+.presence-avatars {
+  display: flex;
+  align-items: center;
+}
+
+.presence-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-deep);
+  margin-left: -10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  cursor: default;
+}
+
+.presence-avatar:first-child {
+  margin-left: 0;
+}
+
+.presence-avatar svg {
+  opacity: 0.95;
+}
+
+.presence-avatar-more {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
 }
 
 .btn-models {
@@ -907,6 +949,13 @@ body::before {
   .btn-regenerate {
     padding-left: 12px;
     padding-right: 12px;
+  }
+
+  .presence-avatar {
+    width: 28px;
+    height: 28px;
+    margin-left: -8px;
+    font-size: 10px;
   }
 }
 

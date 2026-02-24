@@ -13,6 +13,7 @@ import type * as demos from "../demos.js";
 import type * as generate from "../generate.js";
 import type * as http from "../http.js";
 import type * as models from "../models.js";
+import type * as presence from "../presence.js";
 import type * as retrier from "../retrier.js";
 
 import type {
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   generate: typeof generate;
   http: typeof http;
   models: typeof models;
+  presence: typeof presence;
   retrier: typeof retrier;
 }>;
 
@@ -101,6 +103,68 @@ export declare const components: {
               | { type: "canceled" };
             type: "completed";
           }
+      >;
+    };
+  };
+  presence: {
+    public: {
+      disconnect: FunctionReference<
+        "mutation",
+        "internal",
+        { sessionToken: string },
+        null
+      >;
+      heartbeat: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          interval?: number;
+          roomId: string;
+          sessionId: string;
+          userId: string;
+        },
+        { roomToken: string; sessionToken: string }
+      >;
+      list: FunctionReference<
+        "query",
+        "internal",
+        { limit?: number; roomToken: string },
+        Array<{
+          data?: any;
+          lastDisconnected: number;
+          online: boolean;
+          userId: string;
+        }>
+      >;
+      listRoom: FunctionReference<
+        "query",
+        "internal",
+        { limit?: number; onlineOnly?: boolean; roomId: string },
+        Array<{ lastDisconnected: number; online: boolean; userId: string }>
+      >;
+      listUser: FunctionReference<
+        "query",
+        "internal",
+        { limit?: number; onlineOnly?: boolean; userId: string },
+        Array<{ lastDisconnected: number; online: boolean; roomId: string }>
+      >;
+      removeRoom: FunctionReference<
+        "mutation",
+        "internal",
+        { roomId: string },
+        null
+      >;
+      removeRoomUser: FunctionReference<
+        "mutation",
+        "internal",
+        { roomId: string; userId: string },
+        null
+      >;
+      updateRoomUser: FunctionReference<
+        "mutation",
+        "internal",
+        { data?: any; roomId: string; userId: string },
+        null
       >;
     };
   };
