@@ -13,8 +13,7 @@ export const ALL_MODELS = [
   { id: "gpt-5.2", name: "GPT-5.2", defaultEnabled: true, provider: PROVIDERS.openai },
   { id: "gpt-5.2-codex", name: "GPT-5.2 Codex", defaultEnabled: true, provider: PROVIDERS.openai },
   { id: "claude-opus-4-5-20251101", name: "Opus 4.5", defaultEnabled: true, provider: PROVIDERS.anthropic },
-  { id: "claude-3-5-haiku-latest", name: "Haiku 3.5", defaultEnabled: true, provider: PROVIDERS.anthropic },
-  { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5", defaultEnabled: false, provider: PROVIDERS.anthropic },
+  { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5", defaultEnabled: true, provider: PROVIDERS.anthropic },
   { id: "claude-sonnet-4-20250514", name: "Sonnet 4", defaultEnabled: true, provider: PROVIDERS.anthropic },
   { id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5", defaultEnabled: false, provider: PROVIDERS.anthropic },
   { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", defaultEnabled: true, provider: PROVIDERS.google },
@@ -27,8 +26,37 @@ export const ALL_MODELS = [
 
 export type ModelId = typeof ALL_MODELS[number]["id"];
 
+// Legacy models remain viewable in old demos but are not generatable.
+export const LEGACY_MODELS = [
+  { id: "claude-3-5-haiku-latest", name: "Haiku 3.5", provider: PROVIDERS.anthropic },
+] as const;
+
+type ProviderName = (typeof PROVIDERS)[keyof typeof PROVIDERS];
+
+const MODEL_METADATA = new Map<string, { name: string; provider: ProviderName; generatable: boolean }>([
+  ...ALL_MODELS.map(model => [
+    model.id,
+    { name: model.name, provider: model.provider, generatable: true },
+  ] as const),
+  ...LEGACY_MODELS.map(model => [
+    model.id,
+    { name: model.name, provider: model.provider, generatable: false },
+  ] as const),
+]);
+
+export function isModelGeneratable(modelId: string): boolean {
+  return MODEL_METADATA.get(modelId)?.generatable ?? false;
+}
+
+export function isKnownModel(modelId: string): boolean {
+  return MODEL_METADATA.has(modelId);
+}
+
 // Helper to get display name from model id
 export function getModelName(modelId: string): string {
-  const model = ALL_MODELS.find(m => m.id === modelId);
-  return model?.name ?? modelId;
+  return MODEL_METADATA.get(modelId)?.name ?? modelId;
+}
+
+export function getModelProvider(modelId: string): string {
+  return MODEL_METADATA.get(modelId)?.provider ?? "";
 }

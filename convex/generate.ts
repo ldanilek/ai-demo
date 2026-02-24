@@ -8,7 +8,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createXai } from "@ai-sdk/xai";
-import { ALL_MODELS, PROVIDERS } from "./models";
+import { ALL_MODELS, PROVIDERS, isKnownModel, isModelGeneratable } from "./models";
 
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -27,6 +27,12 @@ const xai = createXai({
 });
 
 function getModelProvider(modelId: string) {
+  if (!isModelGeneratable(modelId)) {
+    if (isKnownModel(modelId)) {
+      throw new Error(`Model "${modelId}" is legacy and cannot be regenerated.`);
+    }
+    throw new Error(`Unknown model "${modelId}". Add it to convex/models.ts.`);
+  }
   const modelConfig = ALL_MODELS.find(m => m.id === modelId);
   if (!modelConfig) {
     throw new Error(`Unknown model "${modelId}". Add it to convex/models.ts.`);

@@ -4,10 +4,10 @@ import { paginationOptsValidator } from "convex/server";
 import { internal } from "./_generated/api";
 import { auth } from "./auth";
 import { retrier } from "./retrier";
-import { ALL_MODELS } from "./models";
+import { ALL_MODELS, LEGACY_MODELS, isKnownModel, isModelGeneratable } from "./models";
 
 // Model ID list for ordering outputs (widened to string[] for indexOf with dynamic model IDs)
-const MODEL_IDS: string[] = ALL_MODELS.map(m => m.id);
+const MODEL_IDS: string[] = [...ALL_MODELS.map(m => m.id), ...LEGACY_MODELS.map(m => m.id)];
 
 export const getDemo = query({
   args: { demoId: v.id("aiDemos") },
@@ -66,7 +66,10 @@ export const getDemo = query({
       });
     
     // For old demos without selectedModels, use default enabled models
-    const selectedModels = demo.selectedModels ?? ALL_MODELS.filter(m => m.defaultEnabled).map(m => m.id);
+    const selectedModels = demo.selectedModels
+      ?? (outputs.length > 0
+        ? outputs.map(output => output.model)
+        : ALL_MODELS.filter(m => m.defaultEnabled).map(m => m.id));
     
     return { ...demo, outputs, selectedModels, isOwner };
   },
@@ -187,8 +190,15 @@ export const updateSelectedModels = mutation({
   handler: async (ctx, args) => {
     const demo = await ctx.db.get(args.demoId);
     if (!demo) throw new Error("Demo not found");
-    
-    await ctx.db.patch(args.demoId, { selectedModels: args.selectedModels });
+
+    const selectedModels = Array.from(new Set(args.selectedModels));
+    for (const model of selectedModels) {
+      if (!isKnownModel(model)) {
+        throw new Error(`Unknown model "${model}"`);
+      }
+    }
+
+    await ctx.db.patch(args.demoId, { selectedModels });
   },
 });
 
@@ -201,11 +211,21 @@ export const createNewOutputs = mutation({
     const demo = await ctx.db.get(args.demoId);
     if (!demo) throw new Error("Demo not found");
     if (demo.userId !== userId) throw new Error("Not authorized");
+    const requestedModels = Array.from(new Set(args.models));
+    for (const model of requestedModels) {
+      if (!isKnownModel(model)) {
+        throw new Error(`Unknown model "${model}"`);
+      }
+    }
+    const models = requestedModels.filter(isModelGeneratable);
+    if (models.length === 0) {
+      throw new Error("No selected models support regeneration.");
+    }
 
     // Clear selected versions for regenerated models so they default to latest
     if (demo.selectedOutputs) {
       const updatedSelectedOutputs = { ...demo.selectedOutputs };
-      for (const model of args.models) {
+      for (const model of models) {
         delete updatedSelectedOutputs[model];
       }
       await ctx.db.patch(args.demoId, { selectedOutputs: updatedSelectedOutputs });
@@ -213,7 +233,7 @@ export const createNewOutputs = mutation({
 
     // Create new pending outputs and schedule AI generation for each model.
     // Uses the action retrier to retry on transient failures with exponential backoff.
-    for (const model of args.models) {
+    for (const model of models) {
       const outputId = await ctx.db.insert("modelOutputs", {
         demoId: args.demoId,
         model,
@@ -241,6 +261,12 @@ export const createSingleModelOutput = mutation({
     const demo = await ctx.db.get(args.demoId);
     if (!demo) throw new Error("Demo not found");
     if (demo.userId !== userId) throw new Error("Not authorized");
+    if (!isModelGeneratable(args.model)) {
+      if (isKnownModel(args.model)) {
+        throw new Error(`Model "${args.model}" is legacy and cannot be regenerated.`);
+      }
+      throw new Error(`Unknown model "${args.model}"`);
+    }
 
     // Clear selected version for this model so it defaults to the new (latest) one
     if (demo.selectedOutputs?.[args.model]) {
