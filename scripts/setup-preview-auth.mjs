@@ -45,11 +45,13 @@ const jwk = await crypto.subtle.importKey(
 const exportedJwk = await crypto.subtle.exportKey("jwk", jwk);
 const jwks = JSON.stringify({ keys: [{ use: "sig", ...exportedJwk }] });
 
-execFileSync("npx", ["convex", "env", "set", "JWT_PRIVATE_KEY", privateKey, ...previewArgs], {
-  stdio: "inherit",
+execFileSync("npx", ["convex", "env", "set", "JWT_PRIVATE_KEY", ...previewArgs], {
+  input: privateKey,
+  stdio: ["pipe", "inherit", "inherit"],
 });
-execFileSync("npx", ["convex", "env", "set", "JWKS", jwks, ...previewArgs], {
-  stdio: "inherit",
+execFileSync("npx", ["convex", "env", "set", "JWKS", ...previewArgs], {
+  input: jwks,
+  stdio: ["pipe", "inherit", "inherit"],
 });
 
 console.log("Auth keys configured on preview deployment.");
