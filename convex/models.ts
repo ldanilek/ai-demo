@@ -10,9 +10,13 @@ export const PROVIDERS = {
 export const ALL_MODELS = [
   { id: "gpt-4o-mini", name: "GPT-4o Mini", defaultEnabled: false, provider: PROVIDERS.openai },
   { id: "gpt-4o", name: "GPT-4o", defaultEnabled: true, provider: PROVIDERS.openai },
-  { id: "gpt-5.2", name: "GPT-5.2", defaultEnabled: true, provider: PROVIDERS.openai },
-  { id: "gpt-5.2-codex", name: "GPT-5.2 Codex", defaultEnabled: true, provider: PROVIDERS.openai },
-  { id: "claude-opus-4-5-20251101", name: "Opus 4.5", defaultEnabled: true, provider: PROVIDERS.anthropic },
+  // GPT-5.3 is exposed in product naming, but OpenAI API currently expects `gpt-5`.
+  { id: "gpt-5.3", apiModelId: "gpt-5", name: "GPT-5.3", defaultEnabled: true, provider: PROVIDERS.openai },
+  { id: "gpt-5.3-codex", name: "GPT-5.3 Codex", defaultEnabled: true, provider: PROVIDERS.openai },
+  { id: "gpt-5.2", name: "GPT-5.2", defaultEnabled: false, provider: PROVIDERS.openai },
+  { id: "gpt-5.2-codex", name: "GPT-5.2 Codex", defaultEnabled: false, provider: PROVIDERS.openai },
+  { id: "claude-opus-4-6", name: "Opus 4.6", defaultEnabled: true, provider: PROVIDERS.anthropic },
+  { id: "claude-opus-4-5-20251101", name: "Opus 4.5", defaultEnabled: false, provider: PROVIDERS.anthropic },
   { id: "claude-haiku-4-5-20251001", name: "Haiku 4.5", defaultEnabled: true, provider: PROVIDERS.anthropic },
   { id: "claude-sonnet-4-20250514", name: "Sonnet 4", defaultEnabled: true, provider: PROVIDERS.anthropic },
   { id: "claude-sonnet-4-5-20250929", name: "Sonnet 4.5", defaultEnabled: false, provider: PROVIDERS.anthropic },
