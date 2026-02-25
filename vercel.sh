@@ -7,10 +7,11 @@ if [[ "${VERCEL_ENV:-}" == "production" ]]; then
   exit 0
 fi
 
-preview_source="${VERCEL_GIT_COMMIT_REF:-${VERCEL_BRANCH_URL:-cloud-agent}}"
+preview_source="${VERCEL_GIT_COMMIT_REF:-${VERCEL_BRANCH_URL:-}}"
 preview_name="$(printf '%s' "${preview_source}" | tr '/' '-' | tr -cs '[:alnum:]-' '-' | sed 's/^-*//; s/-*$//' | cut -c1-40)"
 if [[ -z "${preview_name}" ]]; then
-  preview_name="cloud-agent"
+  fallback_uuid="$(cat /proc/sys/kernel/random/uuid 2>/dev/null || uuidgen)"
+  preview_name="vercel-${fallback_uuid}"
 fi
 
 export PREVIEW_NAME="${preview_name}"
