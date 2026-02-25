@@ -105,6 +105,17 @@ function copyLinkToClipboard(link: string): boolean {
   return copied;
 }
 
+async function copyLink(link: string): Promise<boolean> {
+  if (typeof navigator.clipboard?.writeText === "function") {
+    return navigator.clipboard.writeText(link).then(
+      () => true,
+      () => copyLinkToClipboard(link),
+    );
+  }
+
+  return copyLinkToClipboard(link);
+}
+
 export function DemoView() {
   const { demoId } = useParams<{ demoId: string }>();
   const { isAuthenticated } = useConvexAuth();
@@ -196,7 +207,11 @@ export function DemoView() {
   const [editingPrompt, setEditingPrompt] = useState("");
   const [isEditMode, setIsEditMode] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    window.matchMedia("(max-width: 768px)").matches,
+  );
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const shareCopiedTimeoutRef = useRef<number | null>(null);
   const updatePrompt = useMutation(api.demos.updatePrompt);
 
   // Close dropdown when clicking outside
@@ -213,11 +228,34 @@ export function DemoView() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [showModelPicker]);
 
+  useEffect(() => {
+    const mediaQueryList = window.matchMedia("(max-width: 768px)");
+    const handleViewportChange = (event: MediaQueryListEvent) => {
+      setIsMobileViewport(event.matches);
+    };
+
+    mediaQueryList.addEventListener("change", handleViewportChange);
+    return () => mediaQueryList.removeEventListener("change", handleViewportChange);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (shareCopiedTimeoutRef.current !== null) {
+        window.clearTimeout(shareCopiedTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // Use selectedModels from Convex
   const selectedModels = Array.from(new Set(demo?.selectedModels ?? []));
   const selectedModelSet = new Set(selectedModels);
   const selectedGeneratableModels = selectedModels.filter(isModelGeneratable);
   const activeViewers = (presenceState ?? []).filter((viewer) => viewer.online);
+  const maxVisiblePresenceAvatars = 7;
+  const overflowViewerCount = Math.max(
+    activeViewers.length - maxVisiblePresenceAvatars,
+    0,
+  );
   const legacySelectedModels = selectedModels.filter(
     modelId => !isModelGeneratable(modelId) && isKnownModel(modelId)
   );
@@ -310,6 +348,7 @@ export function DemoView() {
     };
 
     if (
+      !isMobileViewport &&
       typeof navigator.share === "function" &&
       (typeof navigator.canShare !== "function" || navigator.canShare(shareData))
     ) {
@@ -317,10 +356,16 @@ export function DemoView() {
       return;
     }
 
-    const copied = copyLinkToClipboard(shareUrl);
+    const copied = await copyLink(shareUrl);
     if (copied) {
+      if (shareCopiedTimeoutRef.current !== null) {
+        window.clearTimeout(shareCopiedTimeoutRef.current);
+      }
       setShareCopied(true);
-      window.setTimeout(() => setShareCopied(false), 2000);
+      shareCopiedTimeoutRef.current = window.setTimeout(() => {
+        setShareCopied(false);
+        shareCopiedTimeoutRef.current = null;
+      }, 2000);
     }
   };
 
@@ -343,10 +388,10 @@ export function DemoView() {
           </svg>
         </button>
         <div className="header-actions">
-          {activeViewers.length > 0 && (
+          {!isMobileViewport && activeViewers.length > 0 && (
             <div className="presence-indicator">
               <div className="presence-avatars">
-                {activeViewers.slice(0, 7).map((viewer, index) => {
+                {activeViewers.slice(0, maxVisiblePresenceAvatars).map((viewer, index) => {
                   const initials = getInitials(viewer.name);
                   const hoverLabel = viewer.name?.trim() || viewer.userId;
                   return (
@@ -369,12 +414,12 @@ export function DemoView() {
                     </div>
                   );
                 })}
-                {activeViewers.length > 7 && (
+                {overflowViewerCount > 0 && (
                   <div
                     className="presence-avatar presence-avatar-more"
-                    title={`${activeViewers.length - 7} more viewers`}
+                    title={`${overflowViewerCount} more viewers`}
                   >
-                    +{activeViewers.length - 7}
+                    +{overflowViewerCount}
                   </div>
                 )}
               </div>
@@ -383,7 +428,7 @@ export function DemoView() {
           <button
             onClick={() => void handleShare()}
             className={`btn btn-secondary btn-share${shareCopied ? " is-copied" : ""}`}
-            title={shareCopied ? "Link copied" : "Share demo"}
+            title={shareCopied ? "Link copied" : isMobileViewport ? "Copy link" : "Share demo"}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="18" cy="5" r="3" />
@@ -392,7 +437,14 @@ export function DemoView() {
               <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
               <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
             </svg>
-            <span className="btn-label">{shareCopied ? "Link Copied" : "Share"}</span>
+            <span className="btn-label">
+              {shareCopied ? "Link Copied" : isMobileViewport ? "Copy Link" : "Share"}
+            </span>
+            {shareCopied && (
+              <span className="share-copy-feedback" role="status" aria-live="polite">
+                Copied link
+              </span>
+            )}
           </button>
           <div className="models-dropdown-container" ref={dropdownRef}>
             <button
