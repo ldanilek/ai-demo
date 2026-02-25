@@ -10,7 +10,8 @@ export const PROVIDERS = {
 export const ALL_MODELS = [
   { id: "gpt-4o-mini", name: "GPT-4o Mini", defaultEnabled: false, provider: PROVIDERS.openai },
   { id: "gpt-4o", name: "GPT-4o", defaultEnabled: true, provider: PROVIDERS.openai },
-  { id: "gpt-5.3", name: "GPT-5.3", defaultEnabled: true, provider: PROVIDERS.openai },
+  // GPT-5.3 is exposed in product naming, but OpenAI API currently expects `gpt-5`.
+  { id: "gpt-5.3", apiModelId: "gpt-5", name: "GPT-5.3", defaultEnabled: true, provider: PROVIDERS.openai },
   { id: "gpt-5.3-codex", name: "GPT-5.3 Codex", defaultEnabled: true, provider: PROVIDERS.openai },
   { id: "gpt-5.2", name: "GPT-5.2", defaultEnabled: false, provider: PROVIDERS.openai },
   { id: "gpt-5.2-codex", name: "GPT-5.2 Codex", defaultEnabled: false, provider: PROVIDERS.openai },

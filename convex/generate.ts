@@ -37,18 +37,21 @@ function getModelProvider(modelId: string) {
   if (!modelConfig) {
     throw new Error(`Unknown model "${modelId}". Add it to convex/models.ts.`);
   }
+  const apiModelId = ("apiModelId" in modelConfig && modelConfig.apiModelId)
+    ? modelConfig.apiModelId
+    : modelId;
   
   // TypeScript enforces exhaustive matching - if a new provider is added
   // to PROVIDERS, this will error until the case is added here
   switch (modelConfig.provider) {
     case PROVIDERS.openai:
-      return openai(modelId);
+      return openai(apiModelId);
     case PROVIDERS.anthropic:
-      return anthropic(modelId);
+      return anthropic(apiModelId);
     case PROVIDERS.google:
-      return google(modelId);
+      return google(apiModelId);
     case PROVIDERS.xai:
-      return xai(modelId);
+      return xai(apiModelId);
   }
 }
 
