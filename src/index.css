@@ -923,10 +923,10 @@ body::before {
   content: "";
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 2px);
-  transform: translate(-50%, 4px);
+  top: calc(100% + 2px);
+  transform: translate(-50%, -4px);
   border: 6px solid transparent;
-  border-top-color: rgba(10, 10, 15, 0.95);
+  border-bottom-color: rgba(10, 10, 15, 0.95);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.12s ease, transform 0.12s ease;
@@ -936,8 +936,8 @@ body::before {
   content: attr(data-presence-label);
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 12px);
-  transform: translate(-50%, 4px);
+  top: calc(100% + 12px);
+  transform: translate(-50%, -4px);
   opacity: 0;
   pointer-events: none;
   white-space: nowrap;
