@@ -56,6 +56,36 @@ function getInitials(name: string | undefined): string {
   return `${words[0][0]}${words[1][0]}`.toUpperCase();
 }
 
+function copyLinkToClipboard(link: string): boolean {
+  const existingSelection = document.getSelection();
+  const selectionRanges: Range[] = [];
+  if (existingSelection) {
+    for (let index = 0; index < existingSelection.rangeCount; index += 1) {
+      selectionRanges.push(existingSelection.getRangeAt(index).cloneRange());
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = link;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "0";
+  textarea.style.left = "0";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const copied = document.execCommand("copy");
+  document.body.removeChild(textarea);
+
+  if (existingSelection) {
+    existingSelection.removeAllRanges();
+    selectionRanges.forEach((range) => existingSelection.addRange(range));
+  }
+
+  return copied;
+}
+
 export function DemoView() {
   const { demoId } = useParams<{ demoId: string }>();
   const currentViewer = useQuery(api.presence.currentViewer, {});
@@ -260,9 +290,11 @@ export function DemoView() {
       return;
     }
 
-    await navigator.clipboard.writeText(shareUrl);
-    setShareCopied(true);
-    window.setTimeout(() => setShareCopied(false), 2000);
+    const copied = copyLinkToClipboard(shareUrl);
+    if (copied) {
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 2000);
+    }
   };
 
   return (
