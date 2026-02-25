@@ -251,7 +251,7 @@ export function DemoView() {
   const selectedModelSet = new Set(selectedModels);
   const selectedGeneratableModels = selectedModels.filter(isModelGeneratable);
   const activeViewers = (presenceState ?? []).filter((viewer) => viewer.online);
-  const maxVisiblePresenceAvatars = isMobileViewport ? 3 : 7;
+  const maxVisiblePresenceAvatars = 7;
   const overflowViewerCount = Math.max(
     activeViewers.length - maxVisiblePresenceAvatars,
     0,
@@ -388,7 +388,7 @@ export function DemoView() {
           </svg>
         </button>
         <div className="header-actions">
-          {activeViewers.length > 0 && (
+          {!isMobileViewport && activeViewers.length > 0 && (
             <div className="presence-indicator">
               <div className="presence-avatars">
                 {activeViewers.slice(0, maxVisiblePresenceAvatars).map((viewer, index) => {
