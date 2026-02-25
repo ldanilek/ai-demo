@@ -246,6 +246,18 @@ export function DemoView() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!fullscreenOutput) return;
+
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setFullscreenOutput(null);
+    };
+
+    window.addEventListener("keydown", handleEscapeKey);
+    return () => window.removeEventListener("keydown", handleEscapeKey);
+  }, [fullscreenOutput]);
+
   // Use selectedModels from Convex
   const selectedModels = Array.from(new Set(demo?.selectedModels ?? []));
   const selectedModelSet = new Set(selectedModels);
