@@ -988,8 +988,19 @@ body::before {
   gap: 8px;
 }
 
+.btn-share {
+  gap: 8px;
+}
+
+.btn-share.is-copied {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: rgba(0, 245, 212, 0.08);
+}
+
 /* Hide button text and Models chevron on narrow viewports - show icons only */
 @media (max-width: 768px) {
+  .btn-share .btn-label,
   .btn-models .btn-label,
   .btn-regenerate .btn-label {
     display: none;
@@ -999,6 +1010,7 @@ body::before {
     display: none;
   }
 
+  .btn-share,
   .btn-models,
   .btn-regenerate {
     padding-left: 12px;

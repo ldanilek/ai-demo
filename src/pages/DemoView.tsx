@@ -75,6 +75,36 @@ function getAnonymousViewerId(): string {
   return newAnonymousId;
 }
 
+function copyLinkToClipboard(link: string): boolean {
+  const existingSelection = document.getSelection();
+  const selectionRanges: Range[] = [];
+  if (existingSelection) {
+    for (let index = 0; index < existingSelection.rangeCount; index += 1) {
+      selectionRanges.push(existingSelection.getRangeAt(index).cloneRange());
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = link;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "0";
+  textarea.style.left = "0";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const copied = document.execCommand("copy");
+  document.body.removeChild(textarea);
+
+  if (existingSelection) {
+    existingSelection.removeAllRanges();
+    selectionRanges.forEach((range) => existingSelection.addRange(range));
+  }
+
+  return copied;
+}
+
 export function DemoView() {
   const { demoId } = useParams<{ demoId: string }>();
   const { isAuthenticated } = useConvexAuth();
@@ -165,6 +195,7 @@ export function DemoView() {
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState("");
   const [isEditMode, setIsEditMode] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const updatePrompt = useMutation(api.demos.updatePrompt);
 
@@ -271,6 +302,28 @@ export function DemoView() {
     await navigateModelVersion({ demoId: demoId as Id<"aiDemos">, model, direction });
   };
 
+  const handleShare = async () => {
+    const shareUrl = window.location.href;
+    const shareData = {
+      title: "AI Demo Arena",
+      url: shareUrl,
+    };
+
+    if (
+      typeof navigator.share === "function" &&
+      (typeof navigator.canShare !== "function" || navigator.canShare(shareData))
+    ) {
+      await navigator.share(shareData);
+      return;
+    }
+
+    const copied = copyLinkToClipboard(shareUrl);
+    if (copied) {
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 2000);
+    }
+  };
+
   return (
     <div className="demo-view-page">
       {/* Backdrop to close dropdown when clicking anywhere */}
@@ -327,6 +380,20 @@ export function DemoView() {
               </div>
             </div>
           )}
+          <button
+            onClick={() => void handleShare()}
+            className={`btn btn-secondary btn-share${shareCopied ? " is-copied" : ""}`}
+            title={shareCopied ? "Link copied" : "Share demo"}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="5" r="3" />
+              <circle cx="6" cy="12" r="3" />
+              <circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg>
+            <span className="btn-label">{shareCopied ? "Link Copied" : "Share"}</span>
+          </button>
           <div className="models-dropdown-container" ref={dropdownRef}>
             <button
               onClick={() => setShowModelPicker(!showModelPicker)}
