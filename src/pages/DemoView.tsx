@@ -234,7 +234,6 @@ export function DemoView() {
       setIsMobileViewport(event.matches);
     };
 
-    setIsMobileViewport(mediaQueryList.matches);
     mediaQueryList.addEventListener("change", handleViewportChange);
     return () => mediaQueryList.removeEventListener("change", handleViewportChange);
   }, []);
