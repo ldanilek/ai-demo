@@ -6,9 +6,17 @@ import { mutation, query } from "./_generated/server";
 import { auth } from "./auth";
 
 const presence = new Presence(components.presence);
+const ANONYMOUS_VIEWER_PREFIX = "anonymous:";
+const ANONYMOUS_VIEWER_ID_PATTERN = /^anonymous:[a-z0-9]{8,32}$/;
+
+type ViewerProfile = {
+  name?: string;
+  email?: string;
+  image?: string;
+} | null;
 
 function getViewerName(
-  user: { name?: string; email?: string } | null,
+  user: ViewerProfile,
   fallbackId: string,
 ): string {
   const trimmedName = user?.name?.trim();
@@ -20,6 +28,28 @@ function getViewerName(
     return emailAlias;
   }
   return `Guest ${fallbackId.slice(-4)}`;
+}
+
+function isAnonymousViewerId(userId: string): boolean {
+  return ANONYMOUS_VIEWER_ID_PATTERN.test(userId);
+}
+
+function getAnonymousViewerName(userId: string): string {
+  const shortId = userId
+    .slice(ANONYMOUS_VIEWER_PREFIX.length)
+    .slice(-6)
+    .toUpperCase();
+  return `Anonymous ${shortId}`;
+}
+
+function getPresenceUserId(
+  authenticatedUserId: Id<"users"> | null,
+  requestedUserId: string,
+): string | null {
+  if (authenticatedUserId) {
+    return authenticatedUserId;
+  }
+  return isAnonymousViewerId(requestedUserId) ? requestedUserId : null;
 }
 
 export const currentViewer = query({
@@ -58,16 +88,17 @@ export const heartbeat = mutation({
     roomToken: v.string(),
     sessionToken: v.string(),
   }),
-  handler: async (ctx, { roomId, sessionId, interval }) => {
+  handler: async (ctx, { roomId, userId, sessionId, interval }) => {
     const authenticatedUserId = await auth.getUserId(ctx);
-    if (!authenticatedUserId) {
+    const presenceUserId = getPresenceUserId(authenticatedUserId, userId);
+    if (!presenceUserId) {
       return { roomToken: "", sessionToken: "" };
     }
 
     return await presence.heartbeat(
       ctx,
       roomId,
-      authenticatedUserId,
+      presenceUserId,
       sessionId,
       interval,
     );
@@ -87,14 +118,16 @@ export const list = query({
     }),
   ),
   handler: async (ctx, args) => {
-    const authenticatedUserId = await auth.getUserId(ctx);
-    if (!authenticatedUserId) {
-      return [];
-    }
-
     const roomPresence = await presence.list(ctx, args.roomToken, 24);
-    return await Promise.all(
+    const namedPresence = await Promise.all(
       roomPresence.map(async (entry) => {
+        if (isAnonymousViewerId(entry.userId)) {
+          return {
+            ...entry,
+            name: getAnonymousViewerName(entry.userId),
+          };
+        }
+
         const user = await ctx.db.get(entry.userId as Id<"users">);
         return {
           ...entry,
@@ -103,6 +136,7 @@ export const list = query({
         };
       }),
     );
+    return namedPresence;
   },
 });
 

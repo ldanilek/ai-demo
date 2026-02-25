@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useConvexAuth } from "convex/react";
 import { useParams, Link } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import usePresence from "@convex-dev/presence/react";
@@ -56,13 +56,40 @@ function getInitials(name: string | undefined): string {
   return `${words[0][0]}${words[1][0]}`.toUpperCase();
 }
 
+const ANONYMOUS_VIEWER_PREFIX = "anonymous:";
+const ANONYMOUS_VIEWER_STORAGE_KEY = "ai-demo-anonymous-viewer-id";
+
+function createAnonymousViewerId(): string {
+  const randomToken = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+  return `${ANONYMOUS_VIEWER_PREFIX}${randomToken}`;
+}
+
+function getAnonymousViewerId(): string {
+  const storedId = window.localStorage.getItem(ANONYMOUS_VIEWER_STORAGE_KEY);
+  if (storedId && storedId.startsWith(ANONYMOUS_VIEWER_PREFIX)) {
+    return storedId;
+  }
+
+  const newAnonymousId = createAnonymousViewerId();
+  window.localStorage.setItem(ANONYMOUS_VIEWER_STORAGE_KEY, newAnonymousId);
+  return newAnonymousId;
+}
+
 export function DemoView() {
   const { demoId } = useParams<{ demoId: string }>();
-  const currentViewer = useQuery(api.presence.currentViewer, {});
+  const { isAuthenticated } = useConvexAuth();
+  const [anonymousViewerId] = useState(() => getAnonymousViewerId());
+  const currentViewer = useQuery(
+    api.presence.currentViewer,
+    isAuthenticated ? {} : "skip",
+  );
+  const viewerId = isAuthenticated
+    ? (currentViewer?.userId ?? "viewer:loading")
+    : anonymousViewerId;
   const presenceState = usePresence(
     api.presence,
     demoId ? `demo:${demoId}` : "demo:loading",
-    currentViewer?.userId ?? "viewer:loading",
+    viewerId,
     5000,
   );
   const demo = useQuery(api.demos.getDemo, { 
@@ -268,11 +295,13 @@ export function DemoView() {
               <div className="presence-avatars">
                 {activeViewers.slice(0, 7).map((viewer, index) => {
                   const initials = getInitials(viewer.name);
+                  const hoverLabel = viewer.name?.trim() || viewer.userId;
                   return (
                     <div
                       key={viewer.userId}
                       className="presence-avatar"
-                      title={viewer.name ?? viewer.userId}
+                      data-presence-label={hoverLabel}
+                      aria-label={hoverLabel}
                       style={{
                         backgroundColor: getPresenceColor(viewer.userId),
                         zIndex: activeViewers.length - index,
