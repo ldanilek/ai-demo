@@ -16,6 +16,7 @@
     "@ai-sdk/xai": "^3.0.14",
     "@convex-dev/action-retrier": "^0.3.0",
     "@convex-dev/auth": "^0.0.90",
+    "@convex-dev/presence": "^0.3.0",
     "ai": "^6.0.27",
     "convex": "https://github.com/ldanilek/convex-backend/releases/download/convex-preview-20260219-195445/convex-1.32.0.tgz",
     "react": "^19.2.0",
