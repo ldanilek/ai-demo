@@ -138,6 +138,7 @@ export function DemoView() {
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState("");
   const [isEditMode, setIsEditMode] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const updatePrompt = useMutation(api.demos.updatePrompt);
 
@@ -244,6 +245,26 @@ export function DemoView() {
     await navigateModelVersion({ demoId: demoId as Id<"aiDemos">, model, direction });
   };
 
+  const handleShare = async () => {
+    const shareUrl = window.location.href;
+    const shareData = {
+      title: "AI Demo Arena",
+      url: shareUrl,
+    };
+
+    if (
+      typeof navigator.share === "function" &&
+      (typeof navigator.canShare !== "function" || navigator.canShare(shareData))
+    ) {
+      await navigator.share(shareData);
+      return;
+    }
+
+    await navigator.clipboard.writeText(shareUrl);
+    setShareCopied(true);
+    window.setTimeout(() => setShareCopied(false), 2000);
+  };
+
   return (
     <div className="demo-view-page">
       {/* Backdrop to close dropdown when clicking anywhere */}
@@ -298,6 +319,20 @@ export function DemoView() {
               </div>
             </div>
           )}
+          <button
+            onClick={() => void handleShare()}
+            className={`btn btn-secondary btn-share${shareCopied ? " is-copied" : ""}`}
+            title={shareCopied ? "Link copied" : "Share demo"}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="5" r="3" />
+              <circle cx="6" cy="12" r="3" />
+              <circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg>
+            <span className="btn-label">{shareCopied ? "Link Copied" : "Share"}</span>
+          </button>
           <div className="models-dropdown-container" ref={dropdownRef}>
             <button
               onClick={() => setShowModelPicker(!showModelPicker)}
